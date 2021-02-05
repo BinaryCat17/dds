@@ -1,0 +1,83 @@
+#pragma once
+
+#include "dds/dds.h"
+#include "dds/helpers/Component.hpp"
+#include "dds/helpers/Connection.hpp"
+#include "dds/helpers/MultiConnection.hpp"
+#include "dds/helpers/IdMap.hpp"
+#include <cista/containers.h>
+#include <cista/mmap.h>
+#include <cista/targets/buf.h>
+#include <optional>
+
+namespace std {
+    template<>
+    struct hash<cista::raw::string> {
+        std::size_t operator()(cista::raw::string const &s) const noexcept {
+            return std::hash<std::string_view>{}(std::string_view{s.begin(), s.size()});
+        }
+    };
+
+    template<>
+    struct hash<cista::offset::string> {
+        std::size_t operator()(cista::offset::string const &s) const noexcept {
+            return std::hash<std::string_view>{}(std::string_view{s.begin(), s.size()});
+        }
+    };
+}
+
+namespace dds {
+    namespace data = cista::raw;
+
+    struct TableData {
+        data::vector<data::string> name{};
+        data::vector<DdsSize> length{};
+    };
+
+    struct ColumnData {
+        data::vector<data::string> name{};
+        data::vector<DdsDataType> type{};
+        data::vector<DdsId> table{};
+        data::vector<DdsSize> aosColumnOffset{};
+        data::vector<data::vector<uint8_t>> soaColumnData{};
+    };
+
+    struct AosTableData {
+        data::vector<DdsId> table{};
+        data::vector<data::vector<uint8_t>> data{};
+        data::vector<DdsSize> rowSize{};
+    };
+
+    struct InstanceData {
+        DdsId idCnt = 0;
+        TableData tables;
+        ColumnData columns;
+        AosTableData aosTables;
+    };
+
+    struct InstanceComponents {
+        ComponentType<TableData> tables;
+        ComponentType<ColumnData> columns;
+        ComponentType<AosTableData> aosTables;
+        IdMap<data::string> tableNameIndex;
+        MultiConnection tableColumns;
+        Connection tableAosData;
+    };
+
+    InstanceComponents makeComponents(InstanceData &data);
+
+    inline DdsId generateId(InstanceData &data) {
+        return ++data.idCnt;
+    }
+
+    using DataPtr = std::unique_ptr<dds::InstanceData, void (*)(dds::InstanceData *)>;
+
+    struct SerializeInfo {
+        std::string path;
+        std::optional<cista::buf<cista::mmap>> mmap;
+        DataPtr data{nullptr, [](dds::InstanceData *) {}};
+    };
+
+    SerializeInfo makeSerializeInfo(DdsInstanceCreateFlags flags, const char *file);
+}
+

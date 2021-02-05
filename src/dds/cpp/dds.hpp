@@ -1,6 +1,6 @@
 #pragma once
 
-#include "dds.h"
+#include "../dds.h"
 #include <memory>
 #include <vector>
 #include <span>

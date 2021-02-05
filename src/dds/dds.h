@@ -1,32 +1,33 @@
 #pragma once
 
+#include "types.h"
+#include "stdint.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "stdint.h"
-
-// enums
-
 typedef enum DdsResult {
-    DDS_RESULT_UNDEFINED,
     DDS_RESULT_SUCCESS,
     DDS_RESULT_TABLE_NOT_EXIST,
     DDS_RESULT_COLUMN_NOT_EXIST,
+    DDS_RESULT_VALUE_NOT_EXIST,
     DDS_RESULT_TABLE_ALREADY_EXIST,
-    DDS_RESULT_COLUMN_ALREADY_EXIST,
-    DDS_RESULT_NEED_AOS,
-    DDS_RESULT_NEED_SOA,
     DDS_RESULT_INVALID_DATA,
     DDS_RESULT_INVALID_TYPE,
 } DdsResult;
 
 typedef enum DdsTableType {
-    DDS_TABLE_CREATE_SOA, // structure of arrays
-    DDS_TABLE_CREATE_AOS, // array of structs
-    DDS_TABLE_CREATE_AOS_PACK, // without padding
-    DDS_TABLE_CREATE_AOS_STD140, // std140 uniform compatible
+    DDS_TABLE_SOA, // structure of arrays
+    DDS_TABLE_AOS, // array of structs
+    DDS_TABLE_AOS_PACK, // without padding
+    DDS_TABLE_AOS_STD140, // std140 uniform compatible
 } DdsTableType;
+
+typedef enum DdsConnectionType {
+    SINGLE,
+    MULTI,
+} DdsConnectionType;
 
 typedef enum DdsDataType {
     DDS_STRING16_TYPE,
@@ -45,123 +46,65 @@ typedef enum DdsDataType {
     DDS_MAT4F_TYPE,
 } DdsDataType;
 
-// types
-
 typedef struct DdsInstanceT DdsInstanceT;
 typedef DdsInstanceT *DdsInstance;
 
-typedef uint32_t DdsIndex;
-typedef uint32_t DdsId;
-typedef uint64_t DdsSize;
-
-typedef struct DdsString16 {
-    uint32_t length;
-    char str[16];
-} DdsString16;
-
-typedef struct DdsString64 {
-    uint32_t length;
-    char str[64];
-} DdsString64;
-
-typedef struct DdsString256 {
-    uint32_t length;
-    char str[256];
-} DdsString256;
-
-typedef struct DdsVec2F {
-    float x;
-    float y;
-} DdsVec2F;
-
-typedef struct DdsVec3F {
-    float x;
-    float y;
-    float z;
-} DdsVec3F;
-
-typedef struct DdsVec4F {
-    float x;
-    float y;
-    float z;
-    float w;
-} DdsVec4F;
-
-typedef float DdsMat3F[3][3];
-typedef float DdsMat4F[4][4];
-
-typedef struct DdsData {
-    void const *pData;
-    uint64_t size;
-} DdsData;
-
-typedef struct DdsReturn {
-    DdsResult result;
-    DdsId value;
-} DdsReturn;
-
-// callbacks
-
-typedef void(*DdsModifyCallback)(void *data, DdsSize size, DdsSize stride, void *userData);
-
-typedef void(*DdsReadCallback)(void const *data, DdsSize size, DdsSize stride, void *userData);
-
-typedef void(*DdsListenCallback)(DdsIndex position, void *userData);
-
-// flags
-
 typedef enum DdsInstanceCreateFlags {
-    DDS_INSTANCE_CREATE_MMAP = 0x00000001,
+    DDS_INSTANCE_CREATE_MMAP_WRITE = 0x00000001,
+    DDS_INSTANCE_CREATE_MMAP_READ = 0x00000001,
 } DdsInstanceCreateFlags;
 
 typedef enum DdsSerializeFlags {
 } DdsSerializeFlags;
 
-// interface
-
-DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, char const *file, DdsInstance *pRes);
+DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, char const *file, DdsInstance *pReturn);
 
 DdsResult ddsDeleteInstance(DdsInstance instance);
 
-DdsResult ddsGetInstanceTables(DdsInstance instance, uint32_t *pCount, DdsId *pIds,
-        char const** pNames);
-
 DdsResult ddsSerialize(DdsInstance instance, DdsSerializeFlags flags);
 
-DdsReturn ddsCreateTable(DdsInstance instance, DdsTableType type, char const *name);
+DdsResult ddsCreateTable(DdsInstance instance, DdsTableType type, char const *name,
+        DdsSize columnCount, char const *const *pColumnNames, DdsDataType const *pColumnTypes,
+        DdsId *pReturn);
 
 DdsResult ddsDeleteTable(DdsInstance instance, DdsId table);
 
-DdsReturn ddsGetTable(DdsInstance instance, char const *name);
+DdsResult ddsFind(DdsInstance instance, DdsId column, DdsDataType type, void const *value,
+        DdsId *pResult);
 
-DdsResult ddsGetTableColumns(DdsInstance instance, DdsId table, uint32_t *pCount,
-        DdsId *pColumnIds, char const **pColumnNames, DdsDataType *pColumnTypes);
+DdsResult ddsMakeConnection(DdsInstance instance, DdsId parentTable, DdsId childTable,
+        DdsConnectionType type);
 
-DdsReturn ddsCreateColumn(DdsInstance instance, DdsDataType type, DdsId table, const char *name);
+DdsResult ddsFindChild(DdsInstance instance, DdsId table, DdsId column, DdsDataType type,
+        DdsId *pResult);
 
-DdsResult ddsDeleteColumn(DdsInstance instance, DdsId column);
+DdsResult ddsFindChildren(DdsInstance instance, DdsId table, DdsId column, DdsDataType type,
+        DdsId const **pResult, DdsSize *pChildrenCount);
 
-DdsReturn ddsGetColumn(DdsInstance instance, DdsId table, const char *name);
+DdsResult ddsGetTablesCount(DdsInstance instance, DdsSize *pReturn);
 
-DdsResult ddsPush(DdsInstance instance, DdsId table, uint32_t count, uint32_t columnCount,
-        DdsId const *columnIds, DdsDataType const *columnTypes, DdsData const *columnData);
+DdsResult ddsGetTable(DdsInstance instance, char const *name, DdsId *pReturn);
 
-DdsResult ddsPop(DdsInstance instance, DdsId table, uint32_t count);
+DdsResult ddsGetTableName(DdsInstance instance, DdsId table, char const **pReturn);
 
-DdsResult ddsInsert(DdsInstance instance, DdsId table, DdsIndex position, uint32_t count,
-        uint32_t columnCount, DdsId const *columnIds, DdsDataType const *columnTypes,
-        DdsData const *columnData);
+DdsResult ddsGetTableLength(DdsInstance instance, DdsId table, DdsSize *pReturn);
 
-DdsResult ddsRemove(DdsInstance instance, DdsId table, DdsIndex position, uint32_t count);
+DdsResult ddsGetTableColumns(DdsInstance instance, DdsId table, DdsId const **pReturn,
+        DdsSize *pColumnCount);
 
-DdsResult ddsListen(DdsInstance instance, DdsId table, DdsListenCallback onInsert,
-        DdsListenCallback onRemove);
+DdsResult ddsGetColumn(DdsInstance instance, DdsId table, const char *name, DdsId *pReturn);
 
-DdsResult ddsReadColumn(DdsInstance instance, DdsId columnId, DdsDataType type,
-        DdsReadCallback callback);
+DdsResult ddsGetColumnName(DdsInstance instance, DdsId column, char const **pReturn);
 
-DdsResult ddsModifyColumn(DdsInstance instance, DdsId columnId, DdsDataType type,
-        DdsModifyCallback callback);
+DdsResult ddsGetColumnType(DdsInstance instance, DdsId column, DdsDataType *pReturn);
+
+DdsResult ddsInsert(DdsInstance instance, DdsId table, DdsSize count, DdsSize columnCount,
+        DdsDataType const *pColumnTypes, DdsData const *pColumnData);
+
+DdsResult ddsRemove(DdsInstance instance, DdsId table, DdsId position);
+
+DdsResult ddsColumnData(DdsInstance instance, DdsId column, DdsDataType type,
+        DdsColumnData *pResult);
 
 #ifdef __cplusplus
 }
