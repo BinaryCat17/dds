@@ -1,7 +1,7 @@
 #pragma once
 
 #include "types.h"
-#include "stdint.h"
+#include "buffer.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +15,9 @@ typedef enum DdsResult {
     DDS_RESULT_TABLE_ALREADY_EXIST,
     DDS_RESULT_INVALID_DATA,
     DDS_RESULT_INVALID_TYPE,
+    DDS_RESULT_ALREADY_CONNECTED,
+    DDS_RESULT_NOT_CONNECTED,
+    DDS_RESULT_CHILD_NOT_EXIST,
 } DdsResult;
 
 typedef enum DdsTableType {
@@ -25,8 +28,8 @@ typedef enum DdsTableType {
 } DdsTableType;
 
 typedef enum DdsConnectionType {
-    SINGLE,
-    MULTI,
+    DDS_CONNECTION_SINGLE,
+    DDS_CONNECTION_MULTI,
 } DdsConnectionType;
 
 typedef enum DdsDataType {
@@ -51,13 +54,14 @@ typedef DdsInstanceT *DdsInstance;
 
 typedef enum DdsInstanceCreateFlags {
     DDS_INSTANCE_CREATE_MMAP_WRITE = 0x00000001,
-    DDS_INSTANCE_CREATE_MMAP_READ = 0x00000001,
+    DDS_INSTANCE_CREATE_MMAP_READ = 0x00000002,
 } DdsInstanceCreateFlags;
 
 typedef enum DdsSerializeFlags {
 } DdsSerializeFlags;
 
-DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, char const *file, DdsInstance *pReturn);
+DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, char const *file,
+        DdsAllocator allocator, DdsInstance *pReturn);
 
 DdsResult ddsDeleteInstance(DdsInstance instance);
 
@@ -72,13 +76,13 @@ DdsResult ddsDeleteTable(DdsInstance instance, DdsId table);
 DdsResult ddsFind(DdsInstance instance, DdsId column, DdsDataType type, void const *value,
         DdsId *pResult);
 
-DdsResult ddsMakeConnection(DdsInstance instance, DdsId parentTable, DdsId childTable,
+DdsResult ddsMakeConnection(DdsInstance instance, DdsId parentTable, DdsId childParentColumn,
         DdsConnectionType type);
 
-DdsResult ddsFindChild(DdsInstance instance, DdsId table, DdsId column, DdsDataType type,
+DdsResult ddsFindChild(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
         DdsId *pResult);
 
-DdsResult ddsFindChildren(DdsInstance instance, DdsId table, DdsId column, DdsDataType type,
+DdsResult ddsFindChildren(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
         DdsId const **pResult, DdsSize *pChildrenCount);
 
 DdsResult ddsGetTablesCount(DdsInstance instance, DdsSize *pReturn);
@@ -105,6 +109,8 @@ DdsResult ddsRemove(DdsInstance instance, DdsId table, DdsId position);
 
 DdsResult ddsColumnData(DdsInstance instance, DdsId column, DdsDataType type,
         DdsColumnData *pResult);
+
+DdsResult ddsAosData(DdsInstance instance, DdsId column, DdsData *pResult);
 
 #ifdef __cplusplus
 }

@@ -47,5 +47,23 @@ namespace dds {
                 return DDS_RESULT_INVALID_TYPE;
         }
     }
+
+    template<typename T, typename FnT>
+    DdsResult getRange(InstanceData &data, InstanceComponents &components, DdsId column, FnT &&f) {
+        DdsId table = data.columns.table[column];
+        if (auto aosIndex = components.tableAosData[table]) {
+            auto &bytes = data.aosTables.data[*aosIndex];
+            auto offset = data.columns.aosColumnOffset[column];
+            auto stride = data.aosTables.rowSize[*aosIndex];
+            dds::DataRange<T> range{bytes, offset, stride};
+            return f(range);
+        } else {
+            auto &bytes = data.columns.soaColumnData[column];
+            auto beg = reinterpret_cast<T *>(bytes.begin());
+            auto end = beg + bytes.size() / sizeof(T);
+            dds::Range<T> range{beg, end};
+            return f(range);
+        }
+    }
 }
 

@@ -1,12 +1,13 @@
 #include "dds.h"
 #include <filesystem>
 #include <cista/serialization.h>
-#include "src/dds/data/instance.hpp"
-#include "src/dds/data/column.hpp"
-#include "src/dds/data/table.hpp"
-#include "src/dds/data/find.hpp"
-#include "src/dds/helpers/TableListener.hpp"
-#include "src/dds/helpers/OffsetIterator.hpp"
+#include "dds/data/instance.hpp"
+#include "dds/data/column.hpp"
+#include "dds/data/table.hpp"
+#include "dds/data/find.hpp"
+#include "dds/data/connection.hpp"
+#include "dds/helpers/TableListener.hpp"
+#include "dds/helpers/StrideIterator.hpp"
 
 namespace fs = std::filesystem;
 
@@ -15,6 +16,7 @@ struct DdsInstanceT {
     dds::InstanceComponents components;
     std::unordered_map<DdsId, dds::TableListener> tableListeners{};
     dds::IdMaps idMaps{};
+    dds::ColumnConnections connections{};
 };
 
 DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, const char *file, DdsInstance *pReturn) {
@@ -28,8 +30,8 @@ DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, const char *file, DdsI
     auto components = dds::makeComponents(*serializeInfo.data);
 
     *pReturn = new DdsInstanceT{
-        std::move(serializeInfo),
-        std::move(components),
+            std::move(serializeInfo),
+            std::move(components),
     };
 
     return DDS_RESULT_SUCCESS;
@@ -86,34 +88,81 @@ DdsResult ddsDeleteTable(DdsInstance instance, DdsId tableId) {
 
 DdsResult ddsFind(DdsInstance instance, DdsId column, DdsDataType type, void const *pValue,
         DdsId *pResult) {
-    DdsColumnData data;
-    DdsResult result = ddsColumnData(instance, column, type, &data);
-    if (result != DDS_RESULT_SUCCESS) {
-        return result;
+    auto &data = *instance->info.data;
+    auto &components = instance->components;
+
+    auto f = [column, instance, pResult, &components, &data](auto &map, auto value) {
+        using value_type = std::decay_t<decltype(value)>;
+
+        auto iter = map.find(column);
+        if (iter == map.end()) {
+            auto &tableListener = instance->tableListeners[data.columns.table[column]];
+            dds::getRange<value_type>(data, components, column,
+                    [&tableListener, &iter, &map, column](auto range) {
+                        dds::IdMap<value_type> idMap(tableListener, range);
+                        return map.emplace(column, std::move(idMap)).first;
+                    });
+        }
+
+        if (auto val = (iter->second)[value]) {
+            *pResult = *val;
+            return DDS_RESULT_SUCCESS;
+        } else {
+            return DDS_RESULT_VALUE_NOT_EXIST;
+        }
+    };
+
+    return dds::getTypeMap(instance->idMaps, pValue, type, std::move(f));
+}
+
+DdsResult ddsMakeConnection(DdsInstance instance, DdsId parentTable, DdsId childParentColumn,
+        DdsConnectionType type) {
+    auto &data = *instance->info.data;
+    auto &components = instance->components;
+
+    DdsDataType dataType = data.columns.type[childParentColumn];
+
+    auto &parentComponent = instance->tableListeners[parentTable];
+    auto &childComponent = instance->tableListeners[data.columns.table[childParentColumn]];
+
+    return dds::getTypeRange(data, dataType, components, childParentColumn,
+            [childParentColumn, instance, type, &childComponent, &parentComponent](auto range) {
+                return dds::insertConnection(instance->connections, childParentColumn, type,
+                        childComponent, range, parentComponent);
+            });
+}
+
+DdsResult ddsFindChild(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
+        DdsId *pResult) {
+    auto& connections = instance->connections.single;
+    auto iter = connections.find(childParentColumn);
+    if(iter == connections.end()) {
+        return DDS_RESULT_NOT_CONNECTED;
     }
 
-    return dds::getTypeMap(instance->idMaps, pValue, type,
-            [data, column, instance, pResult](auto &map, auto value) {
-                using value_type = std::decay_t<decltype(value)>;
+    if(auto child = iter->second[parentId]) {
+        *pResult = *child;
+        return DDS_RESULT_SUCCESS;
+    } else {
+        return DDS_RESULT_CHILD_NOT_EXIST;
+    }
+}
 
-                auto iter = map.find(column);
-                if (iter == map.end()) {
-                    auto &tableListener = instance->tableListeners[column];
-                    dds::StrideIterator<value_type> begin(data.pData, data.stride);
-                    dds::StrideIterator<value_type> end = begin + data.size / sizeof(value_type);
-                    dds::Range range{begin, end};
+DdsResult ddsFindChildren(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
+        DdsId const **pResult, DdsSize *pChildrenCount) {
+    auto& connections = instance->connections.multi;
+    auto iter = connections.find(childParentColumn);
+    if(iter == connections.end()) {
+        return DDS_RESULT_NOT_CONNECTED;
+    }
 
-                    iter = map.insert(std::pair{
-                            column, dds::IdMap<value_type>(tableListener, range)}).first;
-                }
+    if(pResult == nullptr) {
+        *pChildrenCount = iter->second[parentId].size();
+    } else {
+        *pResult = iter->second[parentId].data();
+    }
 
-                if (auto val = (iter->second)[value]) {
-                    *pResult = *val;
-                    return DDS_RESULT_SUCCESS;
-                } else {
-                    return DDS_RESULT_VALUE_NOT_EXIST;
-                }
-            });
+    return DDS_RESULT_SUCCESS;
 }
 
 DdsResult ddsGetTablesCount(DdsInstance instance, DdsSize *pReturn) {
@@ -226,4 +275,22 @@ DdsResult ddsColumnData(DdsInstance instance, DdsId column, DdsDataType type,
     }
 
     return DDS_RESULT_SUCCESS;
+}
+
+DdsResult ddsAosData(DdsInstance instance, DdsId column, DdsData *pResult) {
+    auto &data = *instance->info.data;
+    auto &components = instance->components;
+
+    DdsId table = data.columns.table[column];
+
+    if (auto aosId = components.tableAosData[table]) {
+        auto &bytes = data.aosTables.data[*aosId];
+        *pResult = DdsData{
+                bytes.begin(),
+                bytes.size(),
+        };
+        return DDS_RESULT_SUCCESS;
+    } else {
+        return DDS_RESULT_TABLE_NOT_EXIST;
+    }
 }
