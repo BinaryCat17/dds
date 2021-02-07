@@ -1,10 +1,19 @@
 #pragma once
 
 #include "instance.hpp"
+#include "components.hpp"
 #include "dds/helpers/IdMap.hpp"
 #include "dds/cpp/DataString.hpp"
 
 namespace dds {
+    struct SearchHelpers {
+        IdMap<data::string> tableNameIndex;
+        MultiConnection tableColumns;
+        Connection tableAosData;
+    };
+
+    SearchHelpers makeSearchHelpers(InstanceData &data, Components &components);
+
     struct IdMaps {
         std::unordered_map<DdsId, IdMap<dds::String16>> strings16;
         std::unordered_map<DdsId, IdMap<dds::String64>> strings64;
@@ -49,7 +58,7 @@ namespace dds {
     }
 
     template<typename T, typename FnT>
-    DdsResult getRange(InstanceData &data, InstanceComponents &components, DdsId column, FnT &&f) {
+    DdsResult getRange(InstanceData &data, SearchHelpers &components, DdsId column, FnT &&f) {
         DdsId table = data.columns.table[column];
         if (auto aosIndex = components.tableAosData[table]) {
             auto &bytes = data.aosTables.data[*aosIndex];

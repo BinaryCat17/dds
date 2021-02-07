@@ -1,14 +1,10 @@
 #pragma once
 
 #include "dds/dds.h"
-#include "dds/helpers/Component.hpp"
-#include "dds/helpers/Connection.hpp"
-#include "dds/helpers/MultiConnection.hpp"
-#include "dds/helpers/IdMap.hpp"
+#include "allocator.hpp"
 #include <cista/containers.h>
 #include <cista/mmap.h>
 #include <cista/targets/buf.h>
-#include <optional>
 
 namespace std {
     template<>
@@ -39,36 +35,28 @@ namespace dds {
         data::vector<DdsDataType> type{};
         data::vector<DdsId> table{};
         data::vector<DdsSize> aosColumnOffset{};
-        data::vector<data::vector<uint8_t>> soaColumnData{};
     };
 
     struct AosTableData {
         data::vector<DdsId> table{};
-        data::vector<data::vector<uint8_t>> data{};
         data::vector<DdsSize> rowSize{};
     };
 
     struct InstanceData {
-        DdsId idCnt = 0;
         TableData tables;
         ColumnData columns;
         AosTableData aosTables;
     };
 
-    struct InstanceComponents {
-        ComponentType<TableData> tables;
-        ComponentType<ColumnData> columns;
-        ComponentType<AosTableData> aosTables;
-        IdMap<data::string> tableNameIndex;
-        MultiConnection tableColumns;
-        Connection tableAosData;
+    struct SerializeTablesData {
+        data::vector<data::vector<uint8_t>> columnAosData;
+        data::vector<data::vector<uint8_t>> soaTableData;
     };
 
-    InstanceComponents makeComponents(InstanceData &data);
-
-    inline DdsId generateId(InstanceData &data) {
-        return ++data.idCnt;
-    }
+    struct SerializeData {
+        InstanceData instanceData;
+        SerializeTablesData tablesData;
+    };
 
     using DataPtr = std::unique_ptr<dds::InstanceData, void (*)(dds::InstanceData *)>;
 
@@ -77,7 +65,11 @@ namespace dds {
         std::optional<cista::buf<cista::mmap>> mmap;
         DataPtr data{nullptr, [](dds::InstanceData *) {}};
     };
+    SerializeInfo loadSerializeData(DdsInstanceCreateFlags flags, const char *file);
 
-    SerializeInfo makeSerializeInfo(DdsInstanceCreateFlags flags, const char *file);
+    struct AllocatorData {
+        std::vector<std::vector<uint8_t, DataAllocator<uint8_t>>> aosData;
+        std::vector<std::vector<uint8_t, DataAllocator<uint8_t>>> soaData;
+    };
+    AllocatorData loadAllocatorData(InstanceData &data, DdsAllocator allocator);
 }
-

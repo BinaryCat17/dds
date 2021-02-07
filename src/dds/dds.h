@@ -1,7 +1,7 @@
 #pragma once
 
 #include "types.h"
-#include "buffer.h"
+#include "allocator.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,7 +61,7 @@ typedef enum DdsSerializeFlags {
 } DdsSerializeFlags;
 
 DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, char const *file,
-        DdsAllocator allocator, DdsInstance *pReturn);
+        DdsAllocator const *allocator, DdsInstance *pReturn);
 
 DdsResult ddsDeleteInstance(DdsInstance instance);
 

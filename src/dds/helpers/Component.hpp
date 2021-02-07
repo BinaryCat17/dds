@@ -135,5 +135,7 @@ namespace dds {
     };
 
     template<typename T>
-    using ComponentType = typename ComponentTypeImpl<T>::type;
+    using StructComponentType = typename ComponentTypeImpl<T>::type;
+    template<typename... Types>
+    using ComponentType = Component<std::tuple<Types...>>;
 }

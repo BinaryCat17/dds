@@ -2,7 +2,7 @@
 #include "type.hpp"
 
 namespace dds {
-    DdsResult createColumns(InstanceComponents &components, DdsId table,
+    DdsResult createColumns(InstanceHelpers &components, DdsId table,
             DdsSize columnCount, char const *const *pColumnNames, DdsDataType const *pColumnTypes) {
         for (size_t i = 0; i != columnCount; ++i) {
             components.columns.insert(pColumnNames[i], pColumnTypes[i], table, 0,
@@ -11,7 +11,7 @@ namespace dds {
         return DDS_RESULT_SUCCESS;
     }
 
-    DdsResult addAosCStructColumn(InstanceData &data, InstanceComponents &components, DdsId table,
+    DdsResult addAosCStructColumn(InstanceData &data, InstanceHelpers &components, DdsId table,
             DdsId aosId) {
         auto &rowSize = data.aosTables.rowSize[aosId];
         auto const &columns = components.tableColumns[table];
@@ -34,7 +34,7 @@ namespace dds {
         return DDS_RESULT_SUCCESS;
     }
 
-    DdsResult addAosStd140Column(InstanceData &data, InstanceComponents &components, DdsId table,
+    DdsResult addAosStd140Column(InstanceData &data, InstanceHelpers &components, DdsId table,
             DdsId aosId) {
         auto &rowSize = data.aosTables.rowSize[aosId];
         auto const &columns = components.tableColumns[table];
@@ -52,7 +52,7 @@ namespace dds {
         return DDS_RESULT_SUCCESS;
     }
 
-    DdsResult addAosPackColumn(InstanceData &data, InstanceComponents &components, DdsId table,
+    DdsResult addAosPackColumn(InstanceData &data, InstanceHelpers &components, DdsId table,
             DdsId aosId) {
         auto &rowSize = data.aosTables.rowSize[aosId];
         auto const &columns = components.tableColumns[table];
@@ -64,7 +64,7 @@ namespace dds {
         return DDS_RESULT_SUCCESS;
     }
 
-    DdsResult createAosColumns(InstanceData &data, InstanceComponents &components, DdsId table,
+    DdsResult createAosColumns(InstanceData &data, InstanceHelpers &components, DdsId table,
             DdsId aosId, DdsTableType tableType) {
         switch (tableType) {
             case DDS_TABLE_AOS_PACK:
@@ -78,7 +78,7 @@ namespace dds {
         }
     }
 
-    DdsResult checkColumns(InstanceData &data, InstanceComponents &components, DdsId table,
+    DdsResult checkColumns(InstanceData &data, InstanceHelpers &components, DdsId table,
             DdsSize count, DdsDataType const *pColumnTypes, DdsData const *pColumnData) {
         for (size_t i = 0; i != components.tableColumns[table].size(); ++i) {
             DdsSize column = components.tableColumns[table][i];

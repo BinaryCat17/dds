@@ -3,7 +3,7 @@
 
 
 namespace dds {
-    void aosInsert(InstanceComponents &components, InstanceData &data, DdsId table, DdsId aosId,
+    void aosInsert(InstanceHelpers &components, InstanceData &data, DdsId table, DdsId aosId,
             DdsSize count, DdsData const *pColumnData) {
         auto &bytes = data.aosTables.data[aosId];
         DdsSize rowSize = data.aosTables.rowSize[aosId];
@@ -30,7 +30,7 @@ namespace dds {
         bytes.erase(bytes.end() - rowSize, bytes.end());
     }
 
-    void soaInsert(InstanceComponents &components, InstanceData &data, DdsId table,
+    void soaInsert(InstanceHelpers &components, InstanceData &data, DdsId table,
             DdsData const *pColumnData) {
         for (size_t i = 0; i != components.tableColumns[table].size(); ++i) {
             DdsSize column = components.tableColumns[table][i];
@@ -41,7 +41,7 @@ namespace dds {
         }
     }
 
-    void soaRemove(InstanceComponents &components, InstanceData &data, DdsId table,
+    void soaRemove(InstanceHelpers &components, InstanceData &data, DdsId table,
             DdsId position) {
         for (size_t i = 0; i != components.tableColumns[table].size(); ++i) {
             DdsSize column = components.tableColumns[table][i];

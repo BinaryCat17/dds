@@ -4,22 +4,26 @@
 #include "dds/data/instance.hpp"
 #include "dds/data/column.hpp"
 #include "dds/data/table.hpp"
-#include "dds/data/find.hpp"
+#include "dds/data/search.hpp"
 #include "dds/data/connection.hpp"
 #include "dds/helpers/TableListener.hpp"
-#include "dds/helpers/StrideIterator.hpp"
+#include "dds/data/allocator.hpp"
+#include "dds/data/helpers.hpp"
+#include "dds/data/serialization.hpp"
+#include "dds/data/components.hpp"
 
 namespace fs = std::filesystem;
 
 struct DdsInstanceT {
     dds::SerializeInfo info;
-    dds::InstanceComponents components;
+    dds::SearchHelpers components;
     std::unordered_map<DdsId, dds::TableListener> tableListeners{};
     dds::IdMaps idMaps{};
     dds::ColumnConnections connections{};
 };
 
-DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, const char *file, DdsInstance *pReturn) {
+DdsResult ddsCreateInstance(DdsInstanceCreateFlags flags, const char *file,
+        DdsAllocator const* allocator, DdsInstance *pReturn) {
     if (!fs::exists(file)) {
         cista::buf buf{cista::mmap{file}};
         dds::InstanceData tmp{};
@@ -134,13 +138,13 @@ DdsResult ddsMakeConnection(DdsInstance instance, DdsId parentTable, DdsId child
 
 DdsResult ddsFindChild(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
         DdsId *pResult) {
-    auto& connections = instance->connections.single;
+    auto &connections = instance->connections.single;
     auto iter = connections.find(childParentColumn);
-    if(iter == connections.end()) {
+    if (iter == connections.end()) {
         return DDS_RESULT_NOT_CONNECTED;
     }
 
-    if(auto child = iter->second[parentId]) {
+    if (auto child = iter->second[parentId]) {
         *pResult = *child;
         return DDS_RESULT_SUCCESS;
     } else {
@@ -150,13 +154,13 @@ DdsResult ddsFindChild(DdsInstance instance, DdsId childParentColumn, DdsId pare
 
 DdsResult ddsFindChildren(DdsInstance instance, DdsId childParentColumn, DdsId parentId,
         DdsId const **pResult, DdsSize *pChildrenCount) {
-    auto& connections = instance->connections.multi;
+    auto &connections = instance->connections.multi;
     auto iter = connections.find(childParentColumn);
-    if(iter == connections.end()) {
+    if (iter == connections.end()) {
         return DDS_RESULT_NOT_CONNECTED;
     }
 
-    if(pResult == nullptr) {
+    if (pResult == nullptr) {
         *pChildrenCount = iter->second[parentId].size();
     } else {
         *pResult = iter->second[parentId].data();

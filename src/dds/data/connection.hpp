@@ -61,7 +61,7 @@ namespace dds {
     }
 
     template<typename FnT>
-    DdsResult getTypeRange(InstanceData &data, DdsDataType type, InstanceComponents &components,
+    DdsResult getTypeRange(InstanceData &data, DdsDataType type, SearchHelpers &components,
             DdsId column, FnT &&f) {
         return dds::getType(type, [&data, &components, &f, column](auto val) {
             using T = std::decay_t<decltype(val)>;
